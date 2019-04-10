@@ -28,11 +28,11 @@ import java.util.Set;
  */
 public abstract class PartTypeAdapter<P extends IPartType<P, S>, S extends IPartState<P>> implements IPartType<P, S> {
 
-    private String unlocalizedName = null;
+    private String translationKey = null;
 
     @Override
-    public String getUnlocalizedName() {
-        return unlocalizedName != null ? unlocalizedName : (unlocalizedName = getUnlocalizedNameBase() + ".name");
+    public String getTranslationKey() {
+        return translationKey != null ? translationKey : (translationKey = getTranslationKeyBase() + ".name");
     }
 
     @Override
@@ -66,6 +66,11 @@ public abstract class PartTypeAdapter<P extends IPartType<P, S>, S extends IPart
     @Override
     public int getUpdateInterval(S state) {
         return state.getUpdateInterval();
+    }
+
+    @Override
+    public int getMinimumUpdateInterval(S state) {
+        return 1;
     }
 
     @Override

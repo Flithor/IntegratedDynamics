@@ -37,7 +37,7 @@ public class ValueObjectTypeItemStack extends ValueObjectTypeBase<ValueObjectTyp
     }
 
     public static String getItemStackDisplayNameUsSafe(ItemStack itemStack) throws NoSuchMethodException {
-        return !itemStack.isEmpty() ? itemStack.getDisplayName() : "";
+        return !itemStack.isEmpty() ? (itemStack.getDisplayName() + (itemStack.getCount() > 1 ? " (" + itemStack.getCount() + ")" : "")) : "";
     }
 
     public static String getItemStackDisplayNameSafe(ItemStack itemStack) {
@@ -46,7 +46,7 @@ public class ValueObjectTypeItemStack extends ValueObjectTypeBase<ValueObjectTyp
         try {
             return getItemStackDisplayNameUsSafe(itemStack);
         } catch (NoSuchMethodException e) {
-            return L10NHelpers.localize(itemStack.getUnlocalizedName() + ".name");
+            return L10NHelpers.localize(itemStack.getTranslationKey() + ".name");
         }
     }
 
@@ -75,9 +75,13 @@ public class ValueObjectTypeItemStack extends ValueObjectTypeBase<ValueObjectTyp
     public ValueItemStack deserialize(String value) {
         try {
             NBTTagCompound tag = JsonToNBT.getTagFromJson(value);
+            // Forge returns air for tags with negative count,
+            // so we set it to 1 for deserialization and fix it afterwards.
+            int realCount = tag.getInteger("Count");
+            tag.setByte("Count", (byte)1);
             ItemStack itemStack = new ItemStack(tag);
             if (!itemStack.isEmpty()) {
-                itemStack.setCount(tag.getInteger("Count"));
+                itemStack.setCount(realCount);
             }
             return ValueItemStack.of(itemStack);
         } catch (NBTException e) {

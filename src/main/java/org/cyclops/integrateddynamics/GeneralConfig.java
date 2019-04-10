@@ -100,6 +100,54 @@ public class GeneralConfig extends DummyConfig {
      */
     @ConfigurableProperty(category = ConfigurableTypeCategory.CORE, comment = "When enabled, networks will stop ticking and values will not be shown and evaluated again. This can be used to fix crashing networks by temporarily enabling this option.", isCommandable = true)
     public static boolean safeMode = false;
+
+    /**
+     * The fastest possible frequency in ticks at which ingredient network should be observed.
+     */
+    @ConfigurableProperty(category = ConfigurableTypeCategory.CORE, comment = "The fastest possible frequency in ticks at which ingredient network should be observed.", minimalValue = 1, isCommandable = true)
+    public static int ingredientNetworkObserverFrequencyMin = 5;
+
+    /**
+     * The slowest possible frequency in ticks at which ingredient network should be observed.
+     */
+    @ConfigurableProperty(category = ConfigurableTypeCategory.CORE, comment = "The slowest possible frequency in ticks at which ingredient network should be observed.", minimalValue = 1, isCommandable = true)
+    public static int ingredientNetworkObserverFrequencyMax = 40;
+
+    /**
+     * The ingredient network observation frequency slowdown rate in ticks.
+     */
+    @ConfigurableProperty(category = ConfigurableTypeCategory.CORE, comment = "The ingredient network observation frequency slowdown rate in ticks.", minimalValue = 1, isCommandable = true)
+    public static int ingredientNetworkObserverFrequencyIncreaseFactor = 1;
+
+    /**
+     * The ingredient network observation frequency speedup rate in ticks.
+     */
+    @ConfigurableProperty(category = ConfigurableTypeCategory.CORE, comment = "The ingredient network observation frequency slowdown rate in ticks.", minimalValue = 1, isCommandable = true)
+    public static int ingredientNetworkObserverFrequencyDecreaseFactor = 5;
+
+    /**
+     * The frequency in ticks at which ingredient network should be observed after a position's contents are changed.
+     */
+    @ConfigurableProperty(category = ConfigurableTypeCategory.CORE, comment = "The frequency in ticks at which ingredient network should be observed after a position's contents are changed.", minimalValue = 1, isCommandable = true)
+    public static int ingredientNetworkObserverFrequencyForced = 1;
+
+    /**
+     * The number of threads that the ingredient network observer can use.
+     */
+    @ConfigurableProperty(category = ConfigurableTypeCategory.CORE, comment = "The number of threads that the ingredient network observer can use.", minimalValue = 1, requiresMcRestart = true)
+    public static int ingredientNetworkObserverThreads = 4;
+
+    /**
+     * If the ingredient network observer can work on separate thread.
+     */
+    @ConfigurableProperty(category = ConfigurableTypeCategory.CORE, comment = "If the ingredient network observer can work on separate thread.", isCommandable = true)
+    public static boolean ingredientNetworkObserverEnableMultithreading = true;
+
+    /**
+     * If network change events should be logged. Only enable this when debugging.
+     */
+    @ConfigurableProperty(category = ConfigurableTypeCategory.CORE, comment = "If network change events should be logged. Only enable this when debugging.", isCommandable = true)
+    public static boolean logChangeEvents = false;
     
     /**
      * Create a new instance.

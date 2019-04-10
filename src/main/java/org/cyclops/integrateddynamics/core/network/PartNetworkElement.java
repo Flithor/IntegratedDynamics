@@ -8,12 +8,12 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.IBlockAccess;
 import org.cyclops.cyclopscore.datastructure.DimPos;
 import org.cyclops.integrateddynamics.api.PartStateException;
-import org.cyclops.integrateddynamics.api.network.IChanneledNetwork;
 import org.cyclops.integrateddynamics.api.network.IEnergyConsumingNetworkElement;
 import org.cyclops.integrateddynamics.api.network.INetwork;
 import org.cyclops.integrateddynamics.api.network.INetworkElement;
 import org.cyclops.integrateddynamics.api.network.IPartNetwork;
 import org.cyclops.integrateddynamics.api.network.IPartNetworkElement;
+import org.cyclops.integrateddynamics.api.network.IPositionedAddonsNetwork;
 import org.cyclops.integrateddynamics.api.part.IPartContainer;
 import org.cyclops.integrateddynamics.api.part.IPartState;
 import org.cyclops.integrateddynamics.api.part.IPartType;
@@ -72,7 +72,7 @@ public class PartNetworkElement<P extends IPartType<P, S>, S extends IPartState<
 
     @Override
     public int getChannel() {
-        return hasPartState() ? part.getChannel(getPartState()) : IChanneledNetwork.DEFAULT_CHANNEL;
+        return hasPartState() ? part.getChannel(getPartState()) : IPositionedAddonsNetwork.DEFAULT_CHANNEL;
     }
 
     @Override
@@ -214,7 +214,7 @@ public class PartNetworkElement<P extends IPartType<P, S>, S extends IPartState<
                 // because that depends on tile entity data, which requires loading the part/chunk.
                 int compPriority = !isLoaded() || !p.isLoaded() ? 0 : -Integer.compare(this.getPriority(), p.getPriority());
                 if (compPriority == 0) {
-                    int compPart = getPart().getUnlocalizedName().compareTo(p.getPart().getUnlocalizedName());
+                    int compPart = getPart().getTranslationKey().compareTo(p.getPart().getTranslationKey());
                     if (compPart == 0) {
                         int compPos = getCenterPos(getTarget()).compareTo(getCenterPos(p.getTarget()));
                         if (compPos == 0) {

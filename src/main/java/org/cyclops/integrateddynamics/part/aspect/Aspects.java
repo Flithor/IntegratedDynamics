@@ -46,6 +46,14 @@ import org.cyclops.integrateddynamics.api.part.aspect.IAspectWrite;
 import org.cyclops.integrateddynamics.api.part.aspect.property.IAspectProperties;
 import org.cyclops.integrateddynamics.capability.network.EnergyNetworkConfig;
 import org.cyclops.integrateddynamics.capability.valueinterface.ValueInterfaceConfig;
+import org.cyclops.integrateddynamics.core.evaluate.operator.Operators;
+import org.cyclops.integrateddynamics.core.evaluate.operator.PositionedOperator;
+import org.cyclops.integrateddynamics.core.evaluate.operator.PositionedOperatorRecipeHandlerInputs;
+import org.cyclops.integrateddynamics.core.evaluate.operator.PositionedOperatorRecipeHandlerOutput;
+import org.cyclops.integrateddynamics.core.evaluate.operator.PositionedOperatorRecipeHandlerRecipeByInput;
+import org.cyclops.integrateddynamics.core.evaluate.operator.PositionedOperatorRecipeHandlerRecipeByOutput;
+import org.cyclops.integrateddynamics.core.evaluate.operator.PositionedOperatorRecipeHandlerRecipesByInput;
+import org.cyclops.integrateddynamics.core.evaluate.operator.PositionedOperatorRecipeHandlerRecipesByOutput;
 import org.cyclops.integrateddynamics.core.evaluate.variable.*;
 import org.cyclops.integrateddynamics.core.helper.EnergyHelpers;
 import org.cyclops.integrateddynamics.core.helper.Helpers;
@@ -445,6 +453,69 @@ public class Aspects {
                     AspectReadBuilders.Machine.BUILDER_TEMPERATURE_DOUBLE.handle(
                         temperature -> temperature != null ? temperature.getDefaultTemperature() : 0
                     ).handle(AspectReadBuilders.PROP_GET_DOUBLE, "defaulttemperature").buildRead();
+
+            public static final IAspectRead<ValueTypeBoolean.ValueBoolean, ValueTypeBoolean> BOOLEAN_ISRECIPEHANDLER =
+                    AspectReadBuilders.Machine.BUILDER_RECIPE_HANDLER_BOOLEAN
+                            .handle(Objects::nonNull)
+                            .handle(AspectReadBuilders.PROP_GET_BOOLEAN, "applicable").buildRead();
+            public static final IAspectRead<ValueTypeList.ValueList, ValueTypeList> LIST_GETRECIPES =
+                    AspectReadBuilders.Machine.BUILDER_RECIPE_HANDLER_LIST.handle(
+                            input -> ValueTypeList.ValueList.ofFactory(new ValueTypeListProxyPositionedRecipes(
+                                    input.getLeft().getTarget().getPos(), input.getLeft().getTarget().getSide()))).appendKind("recipes").buildRead();
+            public static final IAspectRead<ValueTypeOperator.ValueOperator, ValueTypeOperator> OPERATOR_GETRECIPEOUTPUT =
+                    AspectReadBuilders.Machine.BUILDER_RECIPE_HANDLER_OPERATOR.handle(
+                            input -> ValueTypeOperator.ValueOperator.of(new PositionedOperatorRecipeHandlerOutput<>(
+                                    input.getLeft().getTarget().getPos(), input.getLeft().getTarget().getSide()
+                            ))).appendKind("recipeoutputbyinput").buildRead();
+            static {
+                Operators.REGISTRY.registerSerializer(new PositionedOperator.Serializer(
+                        PositionedOperatorRecipeHandlerOutput.class, "positionedRecipeHandlerOutput"));
+            }
+            public static final IAspectRead<ValueTypeOperator.ValueOperator, ValueTypeOperator> OPERATOR_GETRECIPEINPUTS =
+                    AspectReadBuilders.Machine.BUILDER_RECIPE_HANDLER_OPERATOR.handle(input ->
+                            ValueTypeOperator.ValueOperator.of(new PositionedOperatorRecipeHandlerInputs<>(
+                                    input.getLeft().getTarget().getPos(), input.getLeft().getTarget().getSide()
+                            ))).appendKind("recipeinputsbyoutput").buildRead();
+            static {
+                Operators.REGISTRY.registerSerializer(new PositionedOperator.Serializer(
+                        PositionedOperatorRecipeHandlerInputs.class, "positionedRecipeHandlerInputs"));
+            }
+            public static final IAspectRead<ValueTypeOperator.ValueOperator, ValueTypeOperator> OPERATOR_GETRECIPESBYINPUT =
+                    AspectReadBuilders.Machine.BUILDER_RECIPE_HANDLER_OPERATOR.handle(
+                            input -> ValueTypeOperator.ValueOperator.of(new PositionedOperatorRecipeHandlerRecipesByInput<>(
+                                    input.getLeft().getTarget().getPos(), input.getLeft().getTarget().getSide()
+                            ))).appendKind("recipesbyinput").buildRead();
+            static {
+                Operators.REGISTRY.registerSerializer(new PositionedOperator.Serializer(
+                        PositionedOperatorRecipeHandlerRecipesByInput.class, "positionedRecipeHandlerRecipesByInput"));
+            }
+            public static final IAspectRead<ValueTypeOperator.ValueOperator, ValueTypeOperator> OPERATOR_GETRECIPESBYOUTPUT =
+                    AspectReadBuilders.Machine.BUILDER_RECIPE_HANDLER_OPERATOR.handle(
+                            input -> ValueTypeOperator.ValueOperator.of(new PositionedOperatorRecipeHandlerRecipesByOutput<>(
+                                    input.getLeft().getTarget().getPos(), input.getLeft().getTarget().getSide()
+                            ))).appendKind("recipesbyoutput").buildRead();
+            static {
+                Operators.REGISTRY.registerSerializer(new PositionedOperator.Serializer(
+                        PositionedOperatorRecipeHandlerRecipesByOutput.class, "positionedRecipeHandlerRecipesByOutput"));
+            }
+            public static final IAspectRead<ValueTypeOperator.ValueOperator, ValueTypeOperator> OPERATOR_GETRECIPEBYINPUT =
+                    AspectReadBuilders.Machine.BUILDER_RECIPE_HANDLER_OPERATOR.handle(
+                            input -> ValueTypeOperator.ValueOperator.of(new PositionedOperatorRecipeHandlerRecipeByInput<>(
+                                    input.getLeft().getTarget().getPos(), input.getLeft().getTarget().getSide()
+                            ))).appendKind("recipebyinput").buildRead();
+            static {
+                Operators.REGISTRY.registerSerializer(new PositionedOperator.Serializer(
+                        PositionedOperatorRecipeHandlerRecipeByInput.class, "positionedRecipeHandlerRecipeByInput"));
+            }
+            public static final IAspectRead<ValueTypeOperator.ValueOperator, ValueTypeOperator> OPERATOR_GETRECIPEBYOUTPUT =
+                    AspectReadBuilders.Machine.BUILDER_RECIPE_HANDLER_OPERATOR.handle(
+                            input -> ValueTypeOperator.ValueOperator.of(new PositionedOperatorRecipeHandlerRecipeByOutput<>(
+                                    input.getLeft().getTarget().getPos(), input.getLeft().getTarget().getSide()
+                            ))).appendKind("recipebyoutput").buildRead();
+            static {
+                Operators.REGISTRY.registerSerializer(new PositionedOperator.Serializer(
+                        PositionedOperatorRecipeHandlerRecipeByOutput.class, "positionedRecipeHandlerRecipeByOutput"));
+            }
 
             public static final IAspectValuePropagator<Pair<PartTarget, IAspectProperties>, IEnergyStorage>
                     PROP_GET = input -> EnergyHelpers.getEnergyStorage(input.getLeft().getTarget());

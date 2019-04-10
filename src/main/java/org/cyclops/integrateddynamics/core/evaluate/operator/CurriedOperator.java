@@ -60,8 +60,8 @@ public class CurriedOperator implements IOperator {
     }
 
     @Override
-    public String getUnlocalizedName() {
-        return baseOperator.getUnlocalizedName();
+    public String getTranslationKey() {
+        return baseOperator.getTranslationKey();
     }
 
     @Override
@@ -175,7 +175,7 @@ public class CurriedOperator implements IOperator {
                 i++;
                 NBTTagCompound valueTag = new NBTTagCompound();
                 IValueType valueType = value.getType();
-                valueTag.setString("valueType", valueType.getUnlocalizedName());
+                valueTag.setString("valueType", valueType.getTranslationKey());
                 valueTag.setString("value", ValueHelpers.serializeRaw(value));
                 list.appendTag(valueTag);
             }
@@ -200,7 +200,7 @@ public class CurriedOperator implements IOperator {
             for (int i = 0; i < list.tagCount(); i++) {
                 NBTTagCompound valuetag = list.getCompoundTagAt(i);
                 IValueType valueType = ValueTypes.REGISTRY.getValueType(valuetag.getString("valueType"));
-                IValue value = valueType.deserialize(valuetag.getString("value"));
+                IValue value = ValueHelpers.deserializeRaw(valueType, valuetag.getString("value"));
                 variables[i] = new Variable(valueType, value);
             }
             IOperator baseOperator = Objects.requireNonNull(Operators.REGISTRY.deserialize(tag.getString("baseOperator")));

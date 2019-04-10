@@ -8,6 +8,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.SoundType;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.properties.PropertyBool;
+import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.particle.ParticleManager;
 import net.minecraft.client.renderer.block.model.IBakedModel;
@@ -415,13 +416,26 @@ public class BlockCable extends ConfigurableBlockContainer implements ICollidabl
     }
 
     @Override
+    public BlockFaceShape getBlockFaceShape(IBlockAccess world, IBlockState state, BlockPos pos, EnumFacing side) {
+        if(CableHelpers.hasFacade(world, pos)) {
+            return BlockFaceShape.SOLID;
+        }
+        IPartContainer partContainer = PartHelpers.getPartContainer(world, pos, side);
+        if(partContainer != null && partContainer.hasPart(side)) {
+            IPartType partType = partContainer.getPart(side);
+            return partType.isSolid(partContainer.getPartState(side)) ? BlockFaceShape.SOLID : BlockFaceShape.MIDDLE_POLE_THIN;
+        }
+        return BlockFaceShape.UNDEFINED;
+    }
+
+    @Override
     public boolean canRenderInLayer(IBlockState blockState, BlockRenderLayer layer) {
         return true;
     }
 
     @Override
     @SideOnly(Side.CLIENT)
-    public BlockRenderLayer getBlockLayer() {
+    public BlockRenderLayer getRenderLayer() {
         return BlockRenderLayer.TRANSLUCENT;
     }
 

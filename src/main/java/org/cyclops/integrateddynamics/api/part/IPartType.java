@@ -43,12 +43,12 @@ public interface IPartType<P extends IPartType<P, S>, S extends IPartState<P>> e
     /**
      * @return The unlocalized base name of this part. (Without the .name suffix)
      */
-    public String getUnlocalizedNameBase();
+    public String getTranslationKeyBase();
 
     /**
      * @return The unlocalized name of this part. (With the .name suffix)
      */
-    public String getUnlocalizedName();
+    public String getTranslationKey();
 
     /**
      * @return JSON model path for the block representation of this part.
@@ -111,6 +111,12 @@ public interface IPartType<P extends IPartType<P, S>, S extends IPartState<P>> e
      * @return The tick interval to update this element.
      */
     public int getUpdateInterval(S state);
+
+    /**
+     * @param state The state
+     * @return The minimum allowed tick interval to update this element.
+     */
+    public int getMinimumUpdateInterval(S state);
 
     /**
      * Set the priority and channel of this part in the network.

@@ -1,6 +1,7 @@
 package org.cyclops.integrateddynamics.core.evaluate;
 
 import com.google.common.base.Optional;
+import com.google.common.collect.Lists;
 import net.minecraft.block.SoundType;
 import net.minecraft.entity.Entity;
 import net.minecraft.item.ItemStack;
@@ -15,6 +16,7 @@ import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.ModContainer;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
+import org.cyclops.commoncapabilities.api.ingredient.IngredientComponent;
 import org.cyclops.cyclopscore.helper.Helpers;
 import org.cyclops.cyclopscore.helper.L10NHelpers;
 import org.cyclops.integrateddynamics.api.evaluate.EvaluationException;
@@ -23,15 +25,20 @@ import org.cyclops.integrateddynamics.api.evaluate.variable.IValue;
 import org.cyclops.integrateddynamics.api.evaluate.variable.IValueType;
 import org.cyclops.integrateddynamics.api.evaluate.variable.IValueTypeNumber;
 import org.cyclops.integrateddynamics.api.evaluate.variable.IVariable;
+import org.cyclops.integrateddynamics.api.ingredient.IIngredientComponentHandler;
 import org.cyclops.integrateddynamics.api.logicprogrammer.IConfigRenderPattern;
 import org.cyclops.integrateddynamics.core.evaluate.build.OperatorBuilder;
 import org.cyclops.integrateddynamics.core.evaluate.operator.IterativeFunction;
 import org.cyclops.integrateddynamics.core.evaluate.operator.OperatorBase;
 import org.cyclops.integrateddynamics.core.evaluate.variable.*;
 import org.cyclops.integrateddynamics.core.helper.L10NValues;
+import org.cyclops.integrateddynamics.core.ingredient.IngredientComponentHandlers;
 
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
 /**
  * Collection of operator builders.
@@ -54,7 +61,7 @@ public class OperatorBuilders {
     public static final IOperatorValuePropagator<ResourceLocation, ValueTypeString.ValueString> PROPAGATOR_RESOURCELOCATION_MODNAME = resourceLocation -> {
         String modName;
         try {
-            String modId = Helpers.getModId(resourceLocation.getResourceDomain());
+            String modId = Helpers.getModId(resourceLocation.getNamespace());
             ModContainer mod = Loader.instance().getIndexedModList().get(modId);
             modName = mod == null ? "Minecraft" : mod.getName();
         } catch (NullPointerException e) {
@@ -68,9 +75,9 @@ public class OperatorBuilders {
         IValueType[] original = ValueHelpers.from(input);
         IValueTypeNumber[] types = new IValueTypeNumber[original.length];
         for(int i = 0; i < original.length; i++) {
-            if (original[i] == ValueTypes.CATEGORY_ANY) {
+            if (original[i].isCategory()) {
                 // This avoids a class-cast exception in cases where we don't know the exact type.
-                return ValueTypes.CATEGORY_ANY;
+                return original[i];
             }
             types[i] = (IValueTypeNumber) original[i];
         }
@@ -127,7 +134,10 @@ public class OperatorBuilders {
     public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> ITEMSTACK_2 = ITEMSTACK.inputTypes(2, ValueTypes.OBJECT_ITEMSTACK).renderPattern(IConfigRenderPattern.INFIX);
     public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> ITEMSTACK_1_INTEGER_1 = ITEMSTACK.inputTypes(new IValueType[]{ValueTypes.OBJECT_ITEMSTACK, ValueTypes.INTEGER}).renderPattern(IConfigRenderPattern.INFIX);
     public static final IterativeFunction.PrePostBuilder<ItemStack, IValue> FUNCTION_ITEMSTACK = IterativeFunction.PrePostBuilder.begin()
-            .appendPre(input -> ((ValueObjectTypeItemStack.ValueItemStack) input.getValue(0)).getRawValue());
+            .appendPre(input -> {
+                ValueObjectTypeItemStack.ValueItemStack value = input.getValue(0);
+                return value.getRawValue();
+            });
     public static final IterativeFunction.PrePostBuilder<ItemStack, Integer> FUNCTION_ITEMSTACK_TO_INT =
             FUNCTION_ITEMSTACK.appendPost(PROPAGATOR_INTEGER_VALUE);
     public static final IterativeFunction.PrePostBuilder<ItemStack, Boolean> FUNCTION_ITEMSTACK_TO_BOOLEAN =
@@ -181,8 +191,8 @@ public class OperatorBuilders {
                 // In this case, throw an eval exception
                 if (!(value instanceof ValueTypeOperator.ValueOperator)) {
                     throw new EvaluationException(L10NHelpers.localize(L10NValues.OPERATOR_ERROR_WRONGTYPE, "",
-                            L10NHelpers.localize(value.getType().getUnlocalizedName()), 0,
-                            L10NHelpers.localize(ValueTypes.OPERATOR.getUnlocalizedName())));
+                            L10NHelpers.localize(value.getType().getTranslationKey()), 0,
+                            L10NHelpers.localize(ValueTypes.OPERATOR.getTranslationKey())));
                 }
                 IOperator innerOperator = ((ValueTypeOperator.ValueOperator) value).getRawValue();
                 if (innerOperator.getRequiredInputLength() == 1) {
@@ -194,10 +204,10 @@ public class OperatorBuilders {
                 } else {
                     if (!ValueHelpers.correspondsTo(input.getVariables()[1].getType(), innerOperator.getInputTypes()[0])) {
                         L10NHelpers.UnlocalizedString error = new L10NHelpers.UnlocalizedString(L10NValues.OPERATOR_ERROR_WRONGCURRYINGTYPE,
-                                new L10NHelpers.UnlocalizedString(innerOperator.getUnlocalizedName()),
-                                new L10NHelpers.UnlocalizedString(input.getVariables()[0].getType().getUnlocalizedName()),
+                                new L10NHelpers.UnlocalizedString(innerOperator.getTranslationKey()),
+                                new L10NHelpers.UnlocalizedString(input.getVariables()[0].getType().getTranslationKey()),
                                 0,
-                                new L10NHelpers.UnlocalizedString(innerOperator.getInputTypes()[0].getUnlocalizedName())
+                                new L10NHelpers.UnlocalizedString(innerOperator.getInputTypes()[0].getTranslationKey())
                                 );
                         throw new EvaluationException(error.localize());
                     }
@@ -206,28 +216,28 @@ public class OperatorBuilders {
                         new OperatorBase.SafeVariablesGetter.Shifted(1, input.getVariables()));
             });
     public static final IterativeFunction.PrePostBuilder<IOperator, IValue> FUNCTION_ONE_OPERATOR = IterativeFunction.PrePostBuilder.begin()
-            .appendPre(input -> getSafeOperator((ValueTypeOperator.ValueOperator) input.getValue(0), ValueTypes.CATEGORY_ANY));
+            .appendPre(input -> getSafeOperator(input.getValue(0), ValueTypes.CATEGORY_ANY));
     public static final IterativeFunction.PrePostBuilder<IOperator, IValue> FUNCTION_ONE_PREDICATE = IterativeFunction.PrePostBuilder.begin()
-            .appendPre(input -> getSafePredictate((ValueTypeOperator.ValueOperator) input.getValue(0)));
+            .appendPre(input -> getSafePredictate(input.getValue(0)));
     public static final IterativeFunction.PrePostBuilder<Pair<IOperator, IOperator>, IValue> FUNCTION_TWO_OPERATORS = IterativeFunction.PrePostBuilder.begin()
             .appendPre(input -> {
-                IOperator second = getSafeOperator((ValueTypeOperator.ValueOperator) input.getValue(1), ValueTypes.CATEGORY_ANY);
+                IOperator second = getSafeOperator(input.getValue(1), ValueTypes.CATEGORY_ANY);
                 IValueType secondInputType = second.getInputTypes()[0];
                 if (ValueHelpers.correspondsTo(secondInputType, ValueTypes.OPERATOR)) {
                     secondInputType = ValueTypes.CATEGORY_ANY;
                 }
-                IOperator first = getSafeOperator((ValueTypeOperator.ValueOperator) input.getValue(0), secondInputType);
+                IOperator first = getSafeOperator(input.getValue(0), secondInputType);
                 return Pair.of(first, second);
             });
     public static final IterativeFunction.PrePostBuilder<Pair<IOperator, IOperator>, IValue> FUNCTION_TWO_PREDICATES = IterativeFunction.PrePostBuilder.begin()
             .appendPre(input -> {
-                IOperator first = getSafePredictate((ValueTypeOperator.ValueOperator) input.getValue(0));
-                IOperator second = getSafePredictate((ValueTypeOperator.ValueOperator) input.getValue(1));
+                IOperator first = getSafePredictate(input.getValue(0));
+                IOperator second = getSafePredictate(input.getValue(1));
                 return Pair.of(first, second);
             });
     public static final IterativeFunction.PrePostBuilder<Triple<IOperator, IOperator, IOperator>, IValue> FUNCTION_THREE_OPERATORS = IterativeFunction.PrePostBuilder.begin()
             .appendPre(input -> {
-                IOperator third = getSafeOperator((ValueTypeOperator.ValueOperator) input.getValue(2), ValueTypes.CATEGORY_ANY);
+                IOperator third = getSafeOperator(input.getValue(2), ValueTypes.CATEGORY_ANY);
                 IValueType<?>[] types = third.getInputTypes();
                 if(types.length < 2) {
                     throw new EvaluationException("The operator did not accept enough inputs");
@@ -240,26 +250,22 @@ public class OperatorBuilders {
                 if (ValueHelpers.correspondsTo(secondOutputType, ValueTypes.OPERATOR)) {
                     secondOutputType = ValueTypes.CATEGORY_ANY;
                 }
-                IOperator first = getSafeOperator((ValueTypeOperator.ValueOperator) input.getValue(0), firstOutputType);
-                IOperator second = getSafeOperator((ValueTypeOperator.ValueOperator) input.getValue(1), secondOutputType);
+                IOperator first = getSafeOperator(input.getValue(0), firstOutputType);
+                IOperator second = getSafeOperator(input.getValue(1), secondOutputType);
                 return Triple.of(first, second, third);
             });
     public static final IterativeFunction.PrePostBuilder<Pair<IOperator, OperatorBase.SafeVariablesGetter>, IValue> FUNCTION_OPERATOR_TAKE_OPERATOR_LIST = IterativeFunction.PrePostBuilder.begin()
             .appendPre(input -> {
-                IOperator innerOperator = ((ValueTypeOperator.ValueOperator) input.getValue(0)).getRawValue();
+                ValueTypeOperator.ValueOperator valueOperator = input.getValue(0);
+                IOperator innerOperator = valueOperator.getRawValue();
                 IValue applyingValue = input.getValue(1);
                 if (!(applyingValue instanceof ValueTypeList.ValueList)) {
                     L10NHelpers.UnlocalizedString error = new L10NHelpers.UnlocalizedString(L10NValues.OPERATOR_ERROR_WRONGTYPE,
                             "?",
-                            new L10NHelpers.UnlocalizedString(applyingValue.getType().getUnlocalizedName()),
+                            new L10NHelpers.UnlocalizedString(applyingValue.getType().getTranslationKey()),
                             0,
-                            new L10NHelpers.UnlocalizedString(ValueTypes.LIST.getUnlocalizedName())
+                            new L10NHelpers.UnlocalizedString(ValueTypes.LIST.getTranslationKey())
                     );
-                    throw new EvaluationException(error.localize());
-                }
-                ValueTypeList.ValueList applyingList = (ValueTypeList.ValueList) applyingValue;
-                L10NHelpers.UnlocalizedString error = innerOperator.validateTypes(new IValueType[]{applyingList.getRawValue().getValueType()});
-                if (error != null) {
                     throw new EvaluationException(error.localize());
                 }
                 return Pair.<IOperator, OperatorBase.SafeVariablesGetter>of(innerOperator,
@@ -363,7 +369,7 @@ public class OperatorBuilders {
                 org.cyclops.integrateddynamics.core.helper.Helpers.createPatternOfLength(subOperatorLength), ValueHelpers.from(expectedSubTypes));
         return (operator, input) -> {
             if (input.length == 0 || !ValueHelpers.correspondsTo(input[0], ValueTypes.OPERATOR)) {
-                String givenName = input.length == 0 ? "null" : input[0].getUnlocalizedName();
+                String givenName = input.length == 0 ? "null" : input[0].getTranslationKey();
                 return new L10NHelpers.UnlocalizedString(L10NValues.VALUETYPE_ERROR_INVALIDOPERATOROPERATOR,
                         0, givenName);
             }
@@ -385,14 +391,23 @@ public class OperatorBuilders {
     public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> NBT_2_NBT = NBT.inputTypes(ValueTypes.NBT, ValueTypes.NBT).renderPattern(IConfigRenderPattern.INFIX);
     public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> NBT_3 = NBT.inputTypes(ValueTypes.NBT, ValueTypes.STRING, ValueTypes.STRING).output(ValueTypes.NBT).renderPattern(IConfigRenderPattern.INFIX_2);
     public static final IterativeFunction.PrePostBuilder<NBTTagCompound, IValue> FUNCTION_NBT = IterativeFunction.PrePostBuilder.begin()
-            .appendPre(input -> ((ValueTypeNbt.ValueNbt) input.getValue(0)).getRawValue());
+            .appendPre(input -> {
+                ValueTypeNbt.ValueNbt value = input.getValue(0);
+                return value.getRawValue();
+            });
     public static final IterativeFunction.PrePostBuilder<Optional<NBTBase>, IValue> FUNCTION_NBT_ENTRY = IterativeFunction.PrePostBuilder.begin()
-            .appendPre(input -> Optional.fromNullable(((ValueTypeNbt.ValueNbt) input.getValue(0)).getRawValue()
-                   .getTag(((ValueTypeString.ValueString) input.getValue(1)).getRawValue())));
+            .appendPre(input -> {
+                ValueTypeNbt.ValueNbt valueNbt = input.getValue(0);
+                ValueTypeString.ValueString valueString = input.getValue(1);
+                return Optional.fromNullable(valueNbt.getRawValue().getTag(valueString.getRawValue()));
+            });
     public static final IterativeFunction.PrePostBuilder<Triple<NBTTagCompound, String, OperatorBase.SafeVariablesGetter>, IValue> FUNCTION_NBT_COPY_FOR_VALUE = IterativeFunction.PrePostBuilder.begin()
-            .appendPre(input -> Triple.of(((ValueTypeNbt.ValueNbt) input.getValue(0)).getRawValue().copy(),
-                ((ValueTypeString.ValueString) input.getValue(1)).getRawValue(),
-                new OperatorBase.SafeVariablesGetter.Shifted(2, input.getVariables())));
+            .appendPre(input -> {
+                ValueTypeNbt.ValueNbt valueNbt = input.getValue(0);
+                ValueTypeString.ValueString valueString = input.getValue(1);
+                return Triple.of(valueNbt.getRawValue().copy(), valueString.getRawValue(),
+                        new OperatorBase.SafeVariablesGetter.Shifted(2, input.getVariables()));
+            });
     public static final IterativeFunction.PrePostBuilder<NBTTagCompound, Integer> FUNCTION_NBT_TO_INT =
             FUNCTION_NBT.appendPost(PROPAGATOR_INTEGER_VALUE);
     public static final IterativeFunction.PrePostBuilder<NBTTagCompound, Boolean> FUNCTION_NBT_TO_BOOLEAN =
@@ -411,6 +426,70 @@ public class OperatorBuilders {
             FUNCTION_NBT_ENTRY.appendPost(PROPAGATOR_NBT_VALUE);
     public static final IterativeFunction.PrePostBuilder<Triple<NBTTagCompound, String, OperatorBase.SafeVariablesGetter>, NBTTagCompound>
             FUNCTION_NBT_COPY_FOR_VALUE_TO_NBT = FUNCTION_NBT_COPY_FOR_VALUE.appendPost(PROPAGATOR_NBT_VALUE);
+
+    // --------------- Ingredients builders ---------------
+    public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> INGREDIENTS = OperatorBuilder.forType(ValueTypes.OBJECT_INGREDIENTS).appendKind("ingredients");
+    public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> INGREDIENTS_1_PREFIX_LONG = INGREDIENTS
+            .inputTypes(ValueTypes.OBJECT_INGREDIENTS).renderPattern(IConfigRenderPattern.SUFFIX_1_LONG);
+    public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> INGREDIENTS_3_ITEMSTACK = INGREDIENTS
+            .inputTypes(ValueTypes.OBJECT_INGREDIENTS, ValueTypes.INTEGER, ValueTypes.OBJECT_ITEMSTACK)
+            .renderPattern(IConfigRenderPattern.INFIX_2).output(ValueTypes.OBJECT_INGREDIENTS);
+    public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> INGREDIENTS_3_FLUIDSTACK = INGREDIENTS
+            .inputTypes(ValueTypes.OBJECT_INGREDIENTS, ValueTypes.INTEGER, ValueTypes.OBJECT_FLUIDSTACK)
+            .renderPattern(IConfigRenderPattern.INFIX_2).output(ValueTypes.OBJECT_INGREDIENTS);
+    public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> INGREDIENTS_3_INTEGER = INGREDIENTS
+            .inputTypes(ValueTypes.OBJECT_INGREDIENTS, ValueTypes.INTEGER, ValueTypes.INTEGER)
+            .renderPattern(IConfigRenderPattern.INFIX_2).output(ValueTypes.OBJECT_INGREDIENTS);
+    public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> INGREDIENTS_2_LIST = INGREDIENTS
+            .inputTypes(ValueTypes.OBJECT_INGREDIENTS, ValueTypes.LIST)
+            .renderPattern(IConfigRenderPattern.INFIX).output(ValueTypes.OBJECT_INGREDIENTS);
+
+    public static OperatorBase.IFunction createFunctionIngredientsList(Callable<IngredientComponent<?, ?>> componentReference) {
+        return variables -> {
+            IngredientComponent<?, ?> component = null;
+            try {
+                component = componentReference.call();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            IIngredientComponentHandler componentHandler = IngredientComponentHandlers.REGISTRY.getComponentHandler(component);
+            ValueObjectTypeIngredients.ValueIngredients value = variables.getValue(0);
+            List<?> list = Lists.newArrayList();
+            if (value.getRawValue().isPresent()) {
+                list = value.getRawValue().get().getInstances(component);
+            }
+            return ValueTypeList.ValueList.ofList(componentHandler.getValueType(), list.stream()
+                    .map(i -> componentHandler.toValue(i)).collect(Collectors.toList()));
+        };
+    }
+
+    public static <VT extends IValueType<V>, V extends IValue, T, M> List<T> unwrapIngredientComponentList(IngredientComponent<T, M> component,
+                                                                                                           ValueTypeList.ValueList<VT, V> list)
+            throws EvaluationException {
+        IIngredientComponentHandler<VT, V, T, M> componentHandler = IngredientComponentHandlers.REGISTRY.getComponentHandler(component);
+        if (list.getRawValue().getValueType() != componentHandler.getValueType()) {
+            L10NHelpers.UnlocalizedString error = new L10NHelpers.UnlocalizedString(
+                    L10NValues.VALUETYPE_ERROR_INVALIDLISTVALUETYPE,
+                    list.getRawValue().getValueType(), componentHandler.getValueType());
+            throw new EvaluationException(error.localize());
+        }
+        List<T> listTransformed = Lists.newArrayListWithExpectedSize(list.getRawValue().getLength());
+        for (V value : list.getRawValue()) {
+            listTransformed.add(componentHandler.toInstance(value));
+        }
+        return listTransformed;
+    }
+
+    // --------------- Recipe builders ---------------
+    public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> RECIPE = OperatorBuilder.forType(ValueTypes.OBJECT_RECIPE).appendKind("recipe");
+    public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> RECIPE_1_SUFFIX_LONG = RECIPE
+            .inputTypes(ValueTypes.OBJECT_RECIPE).renderPattern(IConfigRenderPattern.SUFFIX_1_LONG);
+    public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> RECIPE_2_INFIX = RECIPE
+            .inputTypes(ValueTypes.OBJECT_RECIPE, ValueTypes.OBJECT_INGREDIENTS)
+            .renderPattern(IConfigRenderPattern.INFIX);
+    public static final OperatorBuilder<OperatorBase.SafeVariablesGetter> RECIPE_2_PREFIX = RECIPE
+            .inputTypes(ValueTypes.OBJECT_INGREDIENTS, ValueTypes.OBJECT_INGREDIENTS)
+            .renderPattern(IConfigRenderPattern.PREFIX_2_LONG);
 
     // --------------- Capability helpers ---------------
 
